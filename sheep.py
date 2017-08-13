@@ -38,6 +38,7 @@ db_local = torndb.Connection(
         user=options.mysql_user_local, password=options.mysql_password_local)
 
 now = str(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()))
+nowdate = str(time.strftime('%Y-%m-%d', time.localtime()))
 
 
 def initDb():
@@ -54,6 +55,12 @@ def initDb():
     db_local.execute('truncate table sys_role_resource')
     db_local.execute('truncate table sys_user_bd')
     db_local.execute('truncate table sys_user_appinfo')
+
+    db_local.execute('truncate table app_info')
+    db_local.execute('truncate table app_info_task_type')
+    db_local.execute('truncate table app_info_task_type_price')
+
+
 
     # sys_organization
     db_local.execute('insert into sys_organization(org_name, org_code, ctime, utime, create_user_id, modify_user_id) \
@@ -107,9 +114,10 @@ def start():
     sql_gcd_appinfo = 'select app_key, merchants_name from app_info order by id asc'
     sql_sys_org = 'insert into sys_organization(org_name, org_code, ctime, utime, create_user_id, modify_user_id) \
                     values("%s","%s","%s","%s", 0, 0)'
-    orgs = db_crd.query(sql_gcd_appinfo)
+
     app_keys = set()
 
+    orgs = db_crd.query(sql_gcd_appinfo)
     for org in orgs:
         if org['app_key'] not in app_keys and ("测试" not in org['merchants_name'] and \
             'demo' not in org['merchants_name'] and "专用" not in org['merchants_name']):
@@ -124,7 +132,48 @@ def start():
             app_keys.add(org['app_key'])
 
     # app_info, app_info_task_type, app_info_task_type_price
-    
+    app_keys.clear()
+    sql_old_appinfo = 'select * from app_info order by id asc'
+    sql_old_apptasks = 'select * from app_task where app_key = "%s"'
+    sql_new_insertapp = 'insert into app_info(app_key,ak,sk,merchants_name,channel,biz_type,use_cache,cycle,start_month,create_user_id,user_id,usable) \
+                        values("%s","%s","%s","%s","%s","%s",%s,1,"%s",0,1,%s)'
+    sql_new_insertapptask = 'insert into app_info_task_type(app_key,task_type,cache_charge,free_count_remaining,cur_status,create_user_id,usable) \
+                            values("%s","%s",%s,%s,%s,0,%s)'                        
+    sql_new_insertapptaskprice = 'insert into app_info_task_type_price(app_key,task_type,upper_limit,unit_price,create_user_id) \
+                            values("%s","%s",%s,%s,0)'                        
+    sql_old_appkeys = 'select distinct app_key from app_info'
+    sql_crd_7_appkeys = 'select distinct app_key from charge_order where create_time >= "2017-7-1" and create_time<"2017-8-1"'
+    sql_crd_8_appkeys = 'select distinct app_key from charge_order where create_time >= "2017-8-1" and create_time<"2017-9-1"'
+
+    charged_appkeys = set()
+    charged_db_appkeys = db_crd.query(sql_old_appkeys)
+    for charged_db_appkey in charged_db_appkeys:
+        charged_appkeys.add(charged_db_appkey['app_key'])
+
+    charged_7_appkeys = set()
+    charged_db_7_appkeys = db_crd.query(sql_crd_7_appkeys)
+    for charged_db_7_appkey in charged_db_7_appkeys:
+        charged_7_appkeys.add(charged_db_7_appkey['app_key'])
+
+    charged_8_appkeys = set()
+    charged_db_8_appkeys = db_crd.query(sql_crd_8_appkeys)
+    for charged_db_8_appkey in charged_db_8_appkeys:
+        charged_8_appkeys.add(charged_db_8_appkey['app_key'])     
+
+    appinfos = db_crd.query(sql_old_appinfo)
+    for appinfo in appinfos:
+        start_month = "2017-8-1"
+        if appinfo['app_key'] in charged_7_appkeys:
+            start_month = "2017-7-1"
+        db_local.execute(sql_new_insertapp % (appinfo['app_key'],appinfo['ak'],appinfo['sk'],appinfo['merchants_name'],appinfo['channel'],\
+                        appinfo['biz_type'],appinfo['use_cache'],start_month,appinfo['usable']))
+        app_keys.add(appinfo['app_key'])
+        apptasks = db_crd.query(sql_old_apptasks % appinfo['app_key'])
+        for apptask in apptasks:
+            db_local.execute(sql_new_insertapptask % (appinfo['app_key'],apptask['task_type'],apptask['cache_charge'],apptask['max_size'],\
+                            1,apptask['usable']))
+
+    print app_keys
 
 if __name__=='__main__':
     initDb()
