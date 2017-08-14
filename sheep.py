@@ -145,21 +145,26 @@ def start():
     sql_crd_7_appkeys = 'select distinct app_key from charge_order where create_time >= "2017-7-1" and create_time<"2017-8-1"'
     sql_crd_8_appkeys = 'select distinct app_key from charge_order where create_time >= "2017-8-1" and create_time<"2017-9-1"'
 
+    # get all appkeys info from crd
     charged_appkeys = set()
     charged_db_appkeys = db_crd.query(sql_old_appkeys)
     for charged_db_appkey in charged_db_appkeys:
         charged_appkeys.add(charged_db_appkey['app_key'])
 
+    # get all app_keys from charge_order which called in 2017.7
     charged_7_appkeys = set()
     charged_db_7_appkeys = db_crd.query(sql_crd_7_appkeys)
     for charged_db_7_appkey in charged_db_7_appkeys:
         charged_7_appkeys.add(charged_db_7_appkey['app_key'])
 
+    # get all app_keys from charge_order which called in 2017.8
     charged_8_appkeys = set()
     charged_db_8_appkeys = db_crd.query(sql_crd_8_appkeys)
     for charged_db_8_appkey in charged_db_8_appkeys:
         charged_8_appkeys.add(charged_db_8_appkey['app_key'])     
 
+    # migrate appinfo from crd to local, all appinfo in crd are considered as charged appkeys, should have start_month and price.
+    # the price has one type: ￥1
     appinfos = db_crd.query(sql_old_appinfo)
     for appinfo in appinfos:
         start_month = "2017-8-1"
@@ -172,7 +177,27 @@ def start():
         for apptask in apptasks:
             db_local.execute(sql_new_insertapptask % (appinfo['app_key'],apptask['task_type'],apptask['cache_charge'],apptask['max_size'],\
                             1,apptask['usable']))
+            db_local.execute(sql_new_insertapptaskprice % (appinfo['app_key'],apptask['task_type'],-1,100))
 
+    # migrate appinfo from gcd to local, all appinfo in gcd but not in crd are considered as testing appkeys, should have no start_month.
+    appinfos = db_gcd.query(sql_old_appinfo)
+    for appinfo in appinfos:
+        start_month = "2017-1-1"
+        if appinfo['app_key'] not in app_keys:
+            db_local.execute(sql_new_insertapp % (appinfo['app_key'],appinfo['ak'],appinfo['sk'],appinfo['merchants_name'],appinfo['channel'],\
+                        appinfo['biz_type'],appinfo['use_cache'],start_month,appinfo['usable']))
+            app_keys.add(appinfo['app_key'])
+            apptasks = db_gcd.query(sql_old_apptasks % appinfo['app_key'])
+            for apptask in apptasks:
+                db_local.execute(sql_new_insertapptask % (appinfo['app_key'],apptask['task_type'],apptask['cache_charge'],apptask['max_size'],\
+                                0,apptask['usable']))
+                db_local.execute(sql_new_insertapptaskprice % (appinfo['app_key'],apptask['task_type'],-1,100))
+
+    # migrate three statis tables:app_info_task_statis_cycle,app_info_task_statis_day,app_info_task_statis_month
+    # migrate taskno_record
+    
+
+    print len(app_keys)
     print app_keys
 
 if __name__=='__main__':
