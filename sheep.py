@@ -60,6 +60,10 @@ def initDb():
     db_local.execute('truncate table app_info_task_type')
     db_local.execute('truncate table app_info_task_type_price')
 
+    db_local.execute('truncate table app_info_task_statis_cycle')
+    db_local.execute('truncate table app_info_task_statis_day')
+    db_local.execute('truncate table app_info_task_statis_month')
+    db_local.execute('truncate table taskno_record')
 
 
     # sys_organization
@@ -195,10 +199,24 @@ def start():
 
     # migrate three statis tables:app_info_task_statis_cycle,app_info_task_statis_day,app_info_task_statis_month
     # migrate taskno_record
-    
 
-    print len(app_keys)
-    print app_keys
+    statis_day = dict() # {"appkey|tasktype|date":{"appkey":"", "tasktype":"", "date":"", "ctime":"", "utime":"", "call_count":""}}
+    statis_month = dict()
+    statis_cycle = dict()
+
+    start = 0
+    limit = 10000
+    sql_old_charge_orders = "select * from charge_order order by create_time_stamp asc limit %s offset %s " 
+    count = 10000
+
+    while count >0 :
+        charge_orders = db_gcd.query(sql_old_charge_orders,limit,start)
+        count = len(charge_orders) 
+        for charge_order in charge_orders:
+            
+
+        start = start + limit
+
 
 if __name__=='__main__':
     initDb()
