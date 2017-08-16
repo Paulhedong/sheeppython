@@ -9,6 +9,8 @@ import json
 import torndb
 from tornado.options import define, options
 import pinyin
+import hashlib
+from random import Random
 
 define("mysql_host_gcd", default="172.16.50.150:5506", help="blog database host")
 define("mysql_database_gcd", default="sheepshead", help="blog database name")
@@ -70,7 +72,7 @@ def initDb():
     db_local.execute('insert into sys_organization(org_name, org_code, ctime, utime, create_user_id, modify_user_id) \
                     values("云蜂科技","IbeeSaas","%s", "%s", 0, 0)' % (now,now))
     db_local.execute('insert into sys_organization(org_name, org_code, ctime, utime, create_user_id, modify_user_id) \
-                    values("内部测试","ForTest","%s", "%s", 0, 0)' % (now,now))
+                    values("南京测试","NjTest","%s", "%s", 0, 0)' % (now,now))
 
     # sys_role
     db_local.execute('insert into sys_role(id, role_name, role_code, create_user_id, modify_user_id) values(1, "管理员", "admin", 0, 0)')
@@ -92,11 +94,19 @@ def initDb():
         db_local.execute('insert into sys_role_resource(role_id, resource_id, create_user_id) values(3, %s, 0)' % i)
 
     # sys_user
+    originpwd,puresalt,pwd = genMd5Pwd('bjadmin')
+    print 'bjadmin:'+originpwd+':'+puresalt+':'+pwd
     db_local.execute('insert into sys_user(login_name, passwd, org_id, user_name, create_user_id,  modify_user_id, salt) \
-                     values("admin", "d3c59d25033dbf980d29554025c23a75", 1, "管理员",0, 0, "8d78869f470951332959580424d4bf4f")')
+                     values("bjadmin", "%s", 1, "北京管理员",0, 0, "%s")' % (pwd, puresalt))
+
+    originpwd,puresalt,pwd = genMd5Pwd('njadmin')
+    print 'njadmin:'+originpwd+':'+puresalt+':'+pwd
+    db_local.execute('insert into sys_user(login_name, passwd, org_id, user_name, create_user_id,  modify_user_id, salt) \
+                     values("njadmin", "%s", 1, "南京管理员",0, 0, "%s")' % (pwd, puresalt))
 
     # sys_user_role
     db_local.execute('insert into sys_user_role(user_id, role_id, create_user_id) values(1, 1, 0)')
+    db_local.execute('insert into sys_user_role(user_id, role_id, create_user_id) values(2, 1, 0)')
 
 
 def start():
@@ -201,23 +211,48 @@ def start():
     # migrate taskno_record
 
     statis_day = dict() # {"appkey|tasktype|date":{"appkey":"", "tasktype":"", "date":"", "ctime":"", "utime":"", "call_count":""}}
-    statis_month = dict()
-    statis_cycle = dict()
+    statis_month = dict() # {"appkey|tasktype|month":{"appkey":"", "tasktype":"", "date":"", "ctime":"", "utime":"", "call_count":""}}}
+    statis_cycle = dict() # {"appkey|tasktype|startmonth":{"appkey":"", "tasktype":"", "date":"", "ctime":"", "utime":"", "call_count":""}}}
 
-    start = 0
-    limit = 10000
-    sql_old_charge_orders = "select * from charge_order order by create_time_stamp asc limit %s offset %s " 
-    count = 10000
+    # create org and user account based on 
 
-    while count >0 :
-        charge_orders = db_gcd.query(sql_old_charge_orders,limit,start)
-        count = len(charge_orders) 
-        for charge_order in charge_orders:
+    # start = 0
+    # limit = 10000
+    # sql_old_charge_orders = "select * from charge_order order by create_time_stamp asc limit %s offset %s " 
+    # count = 10000
+
+    # while count >0 :
+    #     charge_orders = db_gcd.query(sql_old_charge_orders,limit,start)
+    #     count = len(charge_orders) 
+    #     for charge_order in charge_orders:
             
 
-        start = start + limit
+    #     start = start + limit
 
+def genMd5Pwd(username=''):
+    puresalt = create_salt(32)
+    salt = username+puresalt
+    pwd = create_salt(6)
+
+    m2 = hashlib.md5()   
+    m2.update(salt)
+    m2.update(pwd)
+    m3 = hashlib.md5()   
+    m3.update(m2.digest())
+    finalpwd = m3.hexdigest() 
+    return pwd,puresalt,finalpwd  
+
+def create_salt(length = 6):  
+    salt = ''  
+    chars = 'AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz0123456789'  
+    len_chars = len(chars) - 1  
+    random = Random()  
+    for i in xrange(length):  
+        # 每次从chars中随机取一位  
+        salt += chars[random.randint(0, len_chars)]  
+    return salt 
 
 if __name__=='__main__':
     initDb()
     start()
+
